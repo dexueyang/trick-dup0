@@ -1,0 +1,168 @@
+#! /usr/bin/perl
+
+use File::Basename ;
+use Cwd ;
+use strict ;
+use Getopt::Long ;
+use Pod::Usage ;
+use Pod::Text ;
+use Cwd 'abs_path';
+
+use FindBin qw($RealBin);
+use lib "$RealBin/pm" ;
+
+use parse_s_define ;
+use gte ;
+use s_source ;
+use default_data ;
+use trick_print ;
+use trick_version ;
+
+my %sim ;
+my $cwd = cwd();
+
+# override the print format for help message
+*Pod::Text::seq_i = sub { return "[04m" . $_[1] . "[00m" } ;
+
+# set default verbose level
+$sim{args}{v} = 2 ;
+$sim{args}{o} = "build/CP_out" ;
+$sim{args}{p} = 1 ;
+
+#--------------------------------------------------------------
+# Process command line arguments
+Getopt::Long::Configure ("bundling");
+GetOptions ( "no_python|p" => sub { $sim{args}{p} = 0 } ,
+         "debug|g" => sub { $sim{args}{v} = 3 ; } ,
+         "help|h|?" => \$sim{args}{h} ,
+         "outfile|o=s" => \$sim{args}{o} ,
+         "t" => \$sim{args}{t} ,
+         "verbose|v=i" => \$sim{args}{v}
+       ) or pod2usage(1) ;
+
+pod2usage(1) if $sim{args}{h} ;
+
+# Get Trick version
+my ($version, $thread) = get_trick_version() ;
+$thread =~ s/\d+\.// ;
+
+if ( ! -e "build" ) {
+     mkdir  "build", 0755 ;
+}
+
+local *OUTFILE ;
+open OUTFILE , ">$sim{args}{o}" or warn "CP cannot open $sim{args}{o} for writing\n" ;
+$sim{fh} = *OUTFILE ;
+print OUTFILE "Output for $0 version $version-$thread at " . localtime() . "\n\n" ;
+
+
+# if no python is specified, turn off the python InputProcessor sim_object in S_define.
+if ( $sim{args}{p} == 0 ) {
+    $ENV{TRICK_SYSTEM_SFLAGS} .= " -DTRICK_NO_INPUTPROCESSOR" ;
+}
+
+#--------------------------------------------------------------
+# Parse the S_define file
+
+trick_print($sim{fh}, "Parsing S_define..." , "title_cyan" , $sim{args}{v}) ;
+trick_print($sim{fh}, "\n" , "title_white" , $sim{args}{v}) if ( $sim{args}{v} != 1 ) ;
+
+parse_s_define(\%sim) ;
+
+trick_print( $sim{fh}, "\nCompleted parsing S_define\n\n" , "normal_green" , $ sim{args}{v} ) ;
+
+#--------------------------------------------------------------
+# Make S_source.c 
+
+trick_print($sim{fh}, "Creating S_source.c...", "title_cyan", $sim{args}{v});
+s_source( \%sim ) ;
+trick_print($sim{fh}, " Complete\n", "title_green", $sim{args}{v}) ;
+
+#--------------------------------------------------------------
+# Make Default Data
+
+chdir ($cwd) ;
+trick_print($sim{fh}, "Creating Default_data...", "title_cyan" , $sim{args}{v}) ;
+make_default_data( \%sim ) ;
+trick_print($sim{fh}, " Complete\n", "title_green", $sim{args}{v}) ;
+
+close OUTFILE ;
+
+#--------------------------------------------------------------
+# Write out the library dependencies found in the S_define file.
+open LIBDEP, ">build/S_define.lib_deps" ;
+foreach my $file ( @{$sim{mis_entry_files}} ) {
+    if ( $file ne "" ) {
+        $file = abs_path(dirname($file)) . "/" . basename($file) ;
+        print LIBDEP "$file\n" ;
+    }
+}
+close LIBDEP ;
+
+################################################################################
+# END MAIN
+################################################################################
+
+__END__
+
+=head1 NAME
+
+CP - Trick Configuration Processor
+
+=head1 SYNOPSIS
+
+CP [-defghmprsz?] [--debug] [--help] [-o I<outfile>] [--outfile=I<outfile>] 
+[-v I<level>] [--verbose=I<level>] [--model_dirs]
+
+=head1 DESCRIPTION
+
+See the Trick User's guide for B<CP>
+
+=head1 OPTIONS
+   
+=over 8
+
+=item B<-d>
+
+S_default.dat and Default_data (Default data files)
+
+=item B<-e>
+
+S_main_\${TRICK_HOST_CPU}.exe (Master executable)
+
+=item B<-f>
+
+Force CP to process S_define without catalog/cache
+
+=item B<-g> | B<--debug>
+
+Set the verbose level to 3
+
+=item B<-h> | B<-?> | B<--help>
+
+Print this help message
+
+=item B<-m>
+
+Makefile (Simulation make file)
+
+=item B<-o> I<file_name> | B<--outfile>=I<outfile>
+
+output all CP output to an external file
+
+=item B<-p>
+
+Create a simulation without python input processor.
+
+=item B<-v> I<level> | B<--verbose>=I<level>
+
+Set the verbose level.  Valid entries are 0-3.
+
+=item B<-DTRICK_VER=x.x>
+
+Note: -DTRICK_VER=x.x is automatically used when parsing header files and the S_define file
+
+=back
+
+=cut
+
