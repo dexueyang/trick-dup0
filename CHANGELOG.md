@@ -11,3 +11,5 @@
 * [view commit](http://github.com/nasa/Trick/commit/83e68ef26e45e1dc4da17754647a8a1f33429eb7) JITEvents are not checkpointable
 * [view commit](http://github.com/nasa/Trick/commit/bc9746db6ce52d94262b622f37b104723afadb04) Fix #55: Fix problem in stringstream declaration
 * [view commit](http://github.com/nasa/Trick/commit/899b0d3efe75ac1efe7a1b4691ede66084f92b54) Merge branch 'master' of https://github.com/nasa/Trick
+
+richard add this line for demo
